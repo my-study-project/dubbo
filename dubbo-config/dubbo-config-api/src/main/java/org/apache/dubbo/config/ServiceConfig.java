@@ -201,6 +201,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             ExtensionLoader<ServiceListener> extensionLoader = this.getExtensionLoader(ServiceListener.class);
             this.serviceListeners.addAll(extensionLoader.getSupportedExtensionInstances());
         }
+        // 初始化服务元数据
         initServiceMetadata(provider);
         serviceMetadata.setServiceType(getInterfaceClass());
         serviceMetadata.setTarget(getRef());
@@ -270,12 +271,12 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
     private void checkAndUpdateSubConfigs() {
 
-        // Use default configs defined explicitly with global scope
+        // 使用在全局范围内明确定义的默认配置
         completeCompoundConfigs();
 
         checkProtocol();
 
-        // init some null configuration.
+        // 初始化一些空配置
         List<ConfigInitializer> configInitializers = this.getExtensionLoader(ConfigInitializer.class)
                 .getActivateExtension(URL.valueOf("configInitializer://", getScopeModel()), (String[]) null);
         configInitializers.forEach(e -> e.initServiceConfig(this));
@@ -346,7 +347,14 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         super.postProcessRefresh();
         checkAndUpdateSubConfigs();
     }
-
+    /**
+     * 暴露服务的主过程：
+     * 首先ServiceConfig类拿到对外提供服务的实际类ref，然后将ProxyFactory类的getInvoker方法使用ref生成一个AbstractProxyInvoker实例，
+     * 到这一步就完成具体服务到invoker的转化。接下来就是Invoker转换到Exporter的过程。 Dubbo处理服务暴露的关键就在Invoker转换到Exporter的过程，
+     * 下面我们以Dubbo和rmi这两种典型协议的实现来进行说明：
+     * Dubbo的实现：Dubbo协议的Invoker转为Exporter发生在DubboProtocol类的export方法，它主要是打开socket侦听服务，并接收客户端发来的各种请求，通讯细节由dubbo自己实现。
+     * Rmi的实现： RMI协议的Invoker转为Exporter发生在RmiProtocol类的export方法，他通过Spring或Dubbo或JDK来实现服务，通讯细节由JDK底层来实现。
+     */
     protected synchronized void doExport() {
         if (unexported) {
             throw new IllegalStateException("The service " + interfaceClass.getName() + " has already unexported!");
@@ -358,12 +366,15 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         if (StringUtils.isEmpty(path)) {
             path = interfaceName;
         }
+        // 拼接导出url
         doExportUrls();
+        // 出口
         exported();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void doExportUrls() {
+        // 1、获取当前的服务管理配置
         ModuleServiceRepository repository = getScopeModel().getServiceRepository();
         ServiceDescriptor serviceDescriptor = repository.registerService(getInterfaceClass());
         providerModel = new ProviderModel(getUniqueServiceName(),
@@ -372,21 +383,33 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             this,
             getScopeModel(),
             serviceMetadata);
-
+        // 2、注册生产者
         repository.registerProvider(providerModel);
-
+        // 3、解析当所有的URL，DUBBO实际是基于url进行驱动的
         List<URL> registryURLs = ConfigValidationUtils.loadRegistries(this, true);
-
+        // 4、循环遍历协议配置注册并根据协议发布服务
         for (ProtocolConfig protocolConfig : protocols) {
             String pathKey = URL.buildKey(getContextPath(protocolConfig)
                     .map(p -> p + "/" + path)
                     .orElse(path), group, version);
             // In case user specified path, register service one more time to map it to path.
+            // 如果用户指定路径，则再注册一次服务以将其映射到路径。
             repository.registerService(pathKey, interfaceClass);
             doExportUrlsFor1Protocol(protocolConfig, registryURLs);
         }
     }
-
+    /**
+     * @return
+     * @Description: 配置，注册地址集合
+     * a、 直接暴露服务端口
+     * 在没有使用注册中心的情况，这种情况一般适用在开发环境下，服务的调用这和提供在同一个IP上，只需要打开服务的端口即可。 即，当配置 or ServiceConfig解析出的URL的格式为：
+     * Dubbo：//service-host/com.xxx.TxxService?version=1.0.0 基于扩展点的Adaptiver机制，通过URL的“dubbo：//”协议头识别，直接调用DubboProtocol的export（）方法，打开服务端口。
+     * <p>
+     * b、向注册中心暴露服务：
+     * 和上一种的区别：需要将服务的IP和端口一同暴露给注册中心。 ServiceConfig解析出的url格式为： registry://registry-host/com.alibaba.dubbo.registry.RegistryService?export=URL.encode(“dubbo://service-host/com.xxx.TxxService?version=1.0.0”)
+     * 基于扩展点的Adaptive机制，通过URL的“registry：//”协议头识别，调用RegistryProtocol的export方法，将export参数中的提供者URL先注册到注册中心，再重新传给Protocol扩展点进行暴露： Dubbo：//service-host/com.xxx.TxxService?version=1.0.0
+     * @Param [protocolConfig, registryURLs]
+     */
     private void doExportUrlsFor1Protocol(ProtocolConfig protocolConfig, List<URL> registryURLs) {
         Map<String, String> map = buildAttributes(protocolConfig);
 
@@ -556,15 +579,16 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
     private void exportUrl(URL url, List<URL> registryURLs) {
         String scope = url.getParameter(SCOPE_KEY);
-        // don't export when none is configured
+        // 没有配置时不要导出
         if (!SCOPE_NONE.equalsIgnoreCase(scope)) {
 
-            // export to local if the config is not remote (export to remote only when config is remote)
+            // 如果配置不是远程的，则导出到本地（仅当配置为远程时才导出到远程
             if (!SCOPE_REMOTE.equalsIgnoreCase(scope)) {
                 exportLocal(url);
             }
 
             // export to remote if the config is not local (export to local only when config is local)
+            // 如果配置不是本地的，则导出到远程（仅当配置为本地时才导出到本地）
             if (!SCOPE_LOCAL.equalsIgnoreCase(scope)) {
                 url = exportRemote(url, registryURLs);
                 if (!isGeneric(generic) && !getScopeModel().isInternal()) {
