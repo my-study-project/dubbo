@@ -561,12 +561,12 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             name = DUBBO;
         }
 
-        // export service
+        // export service  导出服务 对应的host地址和端口号
         String host = findConfiguredHosts(protocolConfig, provider, params);
         Integer port = findConfiguredPort(protocolConfig, provider, this.getExtensionLoader(Protocol.class), name, params);
         URL url = new ServiceConfigURL(name, null, null, host, port, getContextPath(protocolConfig).map(p -> p + "/" + path).orElse(path), params);
 
-        // You can customize Configurator to append extra parameters
+        // You can customize Configurator to append extra parameters  您可以自定义配置器以附加额外的参数
         if (this.getExtensionLoader(ConfiguratorFactory.class)
                 .hasExtension(url.getProtocol())) {
             url = this.getExtensionLoader(ConfiguratorFactory.class)
@@ -606,7 +606,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                     url = url.addParameterIfAbsent(SERVICE_NAME_MAPPING_KEY, "true");
                 }
 
-                //if protocol is only injvm ,not register
+                //if protocol is only injvm ,not register  如果协议只是 injvm ，不注册
                 if (LOCAL_PROTOCOL.equalsIgnoreCase(url.getProtocol())) {
                     continue;
                 }
@@ -617,7 +617,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                     url = url.putAttribute(MONITOR_KEY, monitorUrl);
                 }
 
-                // For providers, this is used to enable custom proxy to generate invoker
+                // For providers, this is used to enable custom proxy to generate invoker 对于提供者，这用于启用自定义代理以生成调用者
                 String proxy = url.getParameter(PROXY_KEY);
                 if (StringUtils.isNotEmpty(proxy)) {
                     registryURL = registryURL.addParameter(PROXY_KEY, proxy);
@@ -649,6 +649,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void doExportUrl(URL url, boolean withMetaData) {
+        //根据本地的URL来实现对应的Invoker
         Invoker<?> invoker = proxyFactory.getInvoker(ref, (Class) interfaceClass, url);
         if (withMetaData) {
             invoker = new DelegateProviderMetaDataInvoker(invoker, this);
@@ -662,6 +663,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
      * always export injvm
      */
     private void exportLocal(URL url) {
+        // 进行本地URL的构建
         URL local = URLBuilder.from(url)
                 .setProtocol(LOCAL_PROTOCOL)
                 .setHost(LOCALHOST_VALUE)

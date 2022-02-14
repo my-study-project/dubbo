@@ -188,13 +188,14 @@ public class ConfigValidationUtils {
     public static final String IPV6_END_MARK = "]";
 
     public static List<URL> loadRegistries(AbstractInterfaceConfig interfaceConfig, boolean provider) {
-        // check && override if necessary
+        // check && override if necessary    检查 && 覆盖
         List<URL> registryList = new ArrayList<>();
         ApplicationConfig application = interfaceConfig.getApplication();
         List<RegistryConfig> registries = interfaceConfig.getRegistries();
         if (CollectionUtils.isNotEmpty(registries)) {
             for (RegistryConfig config : registries) {
                 // try to refresh registry in case it is set directly by user using config.setRegistries()
+                // 尝试刷新注册表，以防用户直接使用 config.setRegistries()
                 if (!config.isRefreshed()) {
                     config.refresh();
                 }
@@ -211,6 +212,7 @@ public class ConfigValidationUtils {
                     if (!map.containsKey(PROTOCOL_KEY)) {
                         map.put(PROTOCOL_KEY, DUBBO_PROTOCOL);
                     }
+                    // map集合保存的内容 path -> org.apache.dubbo.registry.RegistryService  等数据
                     List<URL> urls = UrlUtils.parseURLs(address, map);
 
                     for (URL url : urls) {
@@ -235,6 +237,7 @@ public class ConfigValidationUtils {
         registryList.forEach(registryURL -> {
             if (provider) {
                 // for registries enabled service discovery, automatically register interface compatible addresses.
+                // 对于启用服务发现的注册表，自动注册接口兼容地址
                 String registerMode;
                 if (SERVICE_REGISTRY_PROTOCOL.equals(registryURL.getProtocol())) {
                     registerMode = registryURL.getParameter(REGISTER_MODE_KEY, ConfigurationUtils.getCachedDynamicProperty(scopeModel, DUBBO_REGISTER_MODE_DEFAULT_KEY, DEFAULT_REGISTER_MODE_INSTANCE));
