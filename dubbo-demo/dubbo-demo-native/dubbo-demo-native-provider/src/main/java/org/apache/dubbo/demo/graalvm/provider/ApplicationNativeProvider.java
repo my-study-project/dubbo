@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
-public class Application {
+public class ApplicationNativeProvider {
 
     public static void main(String[] args) throws Exception {
         System.setProperty("dubbo.application.logger", "log4j");

@@ -14,20 +14,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.dubbo.demo.consumer;
+package com.apache.dubbo.demo.graalvm.consumer;
 
 import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.config.ApplicationConfig;
-import org.apache.dubbo.config.MetadataReportConfig;
 import org.apache.dubbo.config.ProtocolConfig;
 import org.apache.dubbo.config.ReferenceConfig;
 import org.apache.dubbo.config.RegistryConfig;
 import org.apache.dubbo.config.bootstrap.DubboBootstrap;
-import org.apache.dubbo.demo.DemoService;
-import org.apache.dubbo.rpc.service.GenericService;
 
-public class Application {
+import org.apace.dubbo.graalvm.demo.DemoService;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class ApplicationNativeConsumer {
+
     public static void main(String[] args) {
+        System.setProperty("dubbo.application.logger", "log4j");
+        System.setProperty("native", "true");
         if (isClassic(args)) {
             runWithRefer();
         } else {
@@ -42,31 +47,31 @@ public class Application {
     private static void runWithBootstrap() {
         ReferenceConfig<DemoService> reference = new ReferenceConfig<>();
         reference.setInterface(DemoService.class);
-        reference.setGeneric("true");
+        reference.setGeneric("false");
 
         DubboBootstrap bootstrap = DubboBootstrap.getInstance();
-        bootstrap.application(new ApplicationConfig("dubbo-demo-api-consumer"))
+        ApplicationConfig applicationConfig = new ApplicationConfig("dubbo-demo-api-consumer");
+        applicationConfig.setQosEnable(false);
+        applicationConfig.setCompiler("jdk");
+        Map<String, String> m = new HashMap<>(1);
+        m.put("proxy", "jdk");
+        applicationConfig.setParameters(m);
+
+        bootstrap.application(applicationConfig)
             .registry(new RegistryConfig("zookeeper://127.0.0.1:2181"))
             .protocol(new ProtocolConfig(CommonConstants.DUBBO, -1))
             .reference(reference)
             .start();
 
         DemoService demoService = bootstrap.getCache().get(reference);
-        String message = demoService.sayHello("dubbo");
+        String message = demoService.sayHello("Native");
         System.out.println(message);
-
-        // generic invoke
-        GenericService genericService = (GenericService) demoService;
-        Object genericInvokeResult = genericService.$invoke("sayHello", new String[]{String.class.getName()},
-            new Object[]{"dubbo generic invoke"});
-        System.out.println(genericInvokeResult);
     }
 
     private static void runWithRefer() {
         ReferenceConfig<DemoService> reference = new ReferenceConfig<>();
         reference.setApplication(new ApplicationConfig("dubbo-demo-api-consumer"));
         reference.setRegistry(new RegistryConfig("zookeeper://127.0.0.1:2181"));
-        reference.setMetadataReportConfig(new MetadataReportConfig("zookeeper://127.0.0.1:2181"));
         reference.setInterface(DemoService.class);
         DemoService service = reference.get();
         String message = service.sayHello("dubbo");

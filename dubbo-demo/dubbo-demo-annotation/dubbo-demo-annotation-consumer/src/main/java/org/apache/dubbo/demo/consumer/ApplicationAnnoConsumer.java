@@ -14,32 +14,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.dubbo.demo.provider;
+package org.apache.dubbo.demo.consumer;
 
-import org.apache.dubbo.config.RegistryConfig;
 import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
+import org.apache.dubbo.demo.DemoService;
+import org.apache.dubbo.demo.consumer.comp.DemoServiceComponent;
 
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 
-public class Application {
-    public static void main(String[] args) throws Exception {
-        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(ProviderConfiguration.class);
+public class ApplicationAnnoConsumer {
+    /**
+     * In order to make sure multicast registry works, need to specify '-Djava.net.preferIPv4Stack=true' before
+     * launch the application
+     */
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(ConsumerConfiguration.class);
         context.start();
-        System.in.read();
+        DemoService service = context.getBean("demoServiceComponent", DemoServiceComponent.class);
+        String hello = service.sayHello("world");
+        System.out.println("result :" + hello);
     }
 
     @Configuration
-    @EnableDubbo(scanBasePackages = "org.apache.dubbo.demo.provider")
-    @PropertySource("classpath:/spring/dubbo-provider.properties")
-    static class ProviderConfiguration {
-        @Bean
-        public RegistryConfig registryConfig() {
-            RegistryConfig registryConfig = new RegistryConfig();
-            registryConfig.setAddress("zookeeper://127.0.0.1:2181");
-            return registryConfig;
-        }
+    @EnableDubbo(scanBasePackages = "org.apache.dubbo.demo.consumer.comp")
+    @PropertySource("classpath:/spring/dubbo-consumer.properties")
+    @ComponentScan(value = {"org.apache.dubbo.demo.consumer.comp"})
+    static class ConsumerConfiguration {
+
     }
 }
