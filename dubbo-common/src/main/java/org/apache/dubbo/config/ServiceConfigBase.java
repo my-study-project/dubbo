@@ -194,6 +194,7 @@ public abstract class ServiceConfigBase<T> extends AbstractServiceConfig {
 
     protected void checkRef() {
         // reference should not be null, and is the implementation of the given interface
+        // 指向类不应为空，并且是给定接口的实现
         if (ref == null) {
             throw new IllegalStateException("ref not allow null!");
         }

@@ -47,6 +47,15 @@ import static org.apache.dubbo.config.AbstractConfig.getTagName;
 /**
  * A lock-free config manager (through ConcurrentHashMap), for fast read operation.
  * The Write operation lock with sub configs map of config type, for safely check and add new config.
+ *
+ * ConfigManager存储了所有dubbo的配置对象：RegistryConfig、ConsumerConfig、ModuleConfig、ProtocolConfig、ProviderConfig、ApplicationConfig、MonitorConfig。
+ * 类似于一个本地的配置中心，如果要查询配置信息，访问ConfigManager获取对应的配置对象即可，任何配置对象修改了，都要刷新ConfigManager，比如ApplicationConfig修改了属性值，便会调用refreshAll方法修改ConfigManager。
+ * 这些配置对象都存储在该对象的属性configsCache中，该属性是一个HashMap对象，因为HashMap不是线程安全的，所以提供了属性lock（ReadWriteLock对象）对访问属性configsCache的操作加锁。
+ * ConfigManager提供了大量的setXXX和addXXX方法，这些方法最终都是调用addConfig方法，addConfig方法将配置对象添加到属性configsCache中。
+ * 属性configsCache的类型是Map<String, Map<String, AbstractConfig>>，是一个两层Map结构，第一层的key是配置类名字的变体，比如调用addMetadataReports增加MetadataReportConfig对象，那么第一层的key是metadata-report，也就是将类名字的Config去掉，然后在类名字中大写字母前加“-”，最后将所有的大写字母变为小写字母。第二层的key是配置对象中的id属性的值，如果没有设置id值，默认使用类名字+“#default”作为key。
+ * 在dubbo中，一般访问ConfigManager，是使用ApplicationModel.getConfigManager()通过SPI获取对象的。
+ * 因为AbstractConfig的addIntoConfigManager方法有注解@PostConstruct，因此在AbstractConfig对象创建完毕后，spring会自动调用addIntoConfigManager方法，在该方法中将配置对象添加到ConfigManager中。通过addIntoConfigManager方法保证了所有的配置对象都会存储到ConfigManager中。
+ * DubboBootstrap也提供了大量的方法用于向ConfigManager中添加配置对象以及从ConfigManager中获取配置对象。
  */
 public class ConfigManager extends AbstractConfigManager implements ApplicationExt {
 

@@ -351,7 +351,7 @@ public class ConfigValidationUtils {
     /**
      * Legitimacy check and setup of local simulated operations. The operations can be a string with Simple operation or
      * a classname whose {@link Class} implements a particular function
-     *
+     * 本地模拟操作的合法性检查和设置。操作可以是简单操作的字符串，也可以是 {@link Class} 实现特定功能的类名
      * @param interfaceClass for provider side, it is the {@link Class} of the service that will be exported; for consumer
      *                       side, it is the {@link Class} of the remote service interface that will be referenced
      */
@@ -365,7 +365,7 @@ public class ConfigValidationUtils {
         if (normalizedMock.startsWith(RETURN_PREFIX)) {
             normalizedMock = normalizedMock.substring(RETURN_PREFIX.length()).trim();
             try {
-                //Check whether the mock value is legal, if it is illegal, throw exception
+                //Check whether the mock value is legal, if it is illegal, throw exception  检查mock值是否合法，非法则抛出异常
                 MockInvoker.parseMockValue(normalizedMock);
             } catch (Exception e) {
                 throw new IllegalStateException("Illegal mock return in <dubbo:service/reference ... " +

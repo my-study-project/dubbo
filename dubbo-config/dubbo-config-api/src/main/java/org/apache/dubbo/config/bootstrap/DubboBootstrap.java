@@ -66,9 +66,13 @@ import static java.util.Collections.singletonList;
 
 /**
  * See {@link ApplicationModel} and {@link ExtensionLoader} for why this class is designed to be singleton.
- * <p>
- * The bootstrap class of Dubbo
- * <p>
+ * DubboBootstrap主要处理dubbo所有的配置信息，功能主要有：
+ * 1、持有ConfigManager、Environment对象并且对其初始化，这两个对象都是与配置相关的；
+ * 2、更新配置中心配置对象ConfigCenterConfig的属性值；
+ * 3、加载元数据中心对象；
+ * 4、检查各个配置对象的属性值是否合法；
+ * 5、注册java的关闭钩子；
+ * 6、服务端服务的暴露。
  * Get singleton instance by calling static method {@link #getInstance()}.
  * Designed as singleton because some classes inside Dubbo, such as ExtensionLoader, are designed only for one instance per process.
  *
@@ -164,7 +168,7 @@ public final class DubboBootstrap {
 
         executorRepository = applicationModel.getExtensionLoader(ExecutorRepository.class).getDefaultExtension();
         applicationDeployer = applicationModel.getDeployer();
-        // listen deploy events
+        // listen deploy events  监听部署事件
         applicationDeployer.addDeployListener(new DeployListenerAdapter<ApplicationModel>() {
             @Override
             public void onStarted(ApplicationModel scopeModel) {
@@ -181,7 +185,7 @@ public final class DubboBootstrap {
                 notifyStopped(applicationModel);
             }
         });
-        // register DubboBootstrap bean
+        // register DubboBootstrap bean 注册DubboBootstrap的bean
         applicationModel.getBeanFactory().registerBean(this);
     }
 

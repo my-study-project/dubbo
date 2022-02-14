@@ -582,10 +582,11 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
     }
 
     private void startModules() {
-        // ensure init and start internal module first
+        // ensure init and start internal module first  确保首先初始化并启动内部模块
         prepareInternalModule();
 
         // filter and start pending modules, ignore new module during starting, throw exception of module start
+        // 过滤并启动挂起的模块，启动时忽略新模块，抛出模块启动异常
         for (ModuleModel moduleModel : new ArrayList<>(applicationModel.getModuleModels())) {
             if (moduleModel.getDeployer().isPending()) {
                 moduleModel.getDeployer().start();

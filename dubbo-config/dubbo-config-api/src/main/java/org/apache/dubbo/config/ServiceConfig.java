@@ -281,7 +281,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                 .getActivateExtension(URL.valueOf("configInitializer://", getScopeModel()), (String[]) null);
         configInitializers.forEach(e -> e.initServiceConfig(this));
 
-        // if protocol is not injvm checkRegistry
+        // if protocol is not injvm checkRegistry  如果协议不是 injvm checkRegistry
         if (!isOnlyInJvm()) {
             checkRegistry();
         }

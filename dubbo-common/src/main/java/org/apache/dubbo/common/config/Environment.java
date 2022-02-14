@@ -34,7 +34,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-
+/**
+ * Environment也是存储配置信息，与ConfigManager不同的是，Environment主要处理的与系统配置相关，比如Java系统配置，以及配置中心的配置。
+ * 获取Environment对象，是通过ApplicationModel.getEnvironment()得到。
+ *
+ * DubboBootstrap的initialize方法是初始化方法，是DubboBootstrap最重要的方法，通过对这个方法的分析，可以了解该类的具体作用。该方法有两个调用位置：
+ *
+ * 在ReferenceConfig的init方法（客户端启动）中执行；
+ * 在服务端启动的时候，当spring发布了ContextRefreshedEvent事件后，会触发监听器DubboBootstrapApplicationListener，该监听器也会调用initialize方法。
+ * 其他的调用位置也有，但是上述两个位置分别是客户端和服务端启动时第一次调用的位置，因此后续其他调用会跳过initialize方法。
+ */
 public class Environment extends LifecycleAdapter implements ApplicationExt {
     private static final Logger logger = LoggerFactory.getLogger(Environment.class);
 

@@ -453,6 +453,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
 
         try {
             //Check if the localClass a constructor with parameter who's type is interfaceClass
+            // 检查 localClass 的构造函数，其参数类型为 interfaceClass
             ReflectUtils.findConstructor(localClass, interfaceClass);
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("No such constructor \"public " + localClass.getSimpleName() +
