@@ -262,6 +262,7 @@ public abstract class ServiceConfigBase<T> extends AbstractServiceConfig {
 
     protected void completeCompoundConfigs() {
         super.completeCompoundConfigs(provider);
+        // 如果配置了provider，那么则从provider中获取信息赋值其他属性，在这些属性为空的情况下
         if (provider != null) {
             if (notHasSelfProtocolProperty()) {
                 setProtocols(provider.getProtocols());

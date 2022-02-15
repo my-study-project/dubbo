@@ -221,7 +221,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
 //            ((ModuleModel)oldScopeModel).getConfigManager().removeConfig(this);
 //        }
 
-        // change referenced config's scope model
+        // 更改引用配置的范围模型 change referenced config's scope model
         ApplicationModel applicationModel = ScopeModelUtil.getApplicationModel(scopeModel);
         if (this.configCenter != null && this.configCenter.getScopeModel() != applicationModel) {
             this.configCenter.setScopeModel(applicationModel);

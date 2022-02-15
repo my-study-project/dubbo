@@ -642,19 +642,21 @@ public abstract class AbstractConfig implements Serializable {
         }
     }
 
-    /**
-     * Dubbo config property override
-     */
+    // 刷新某个Config
+    // 以ServiceConfig为例，ServiceConfig中包括很多属性，比如timeout
+    // 但是在定义一个Service时，如果在注解上没有配置timeout，那么就会其他地方获取timeout的配置
+    // 比如可以从系统变量->配置中心应用配置->配置中心全局配置->注解或xml中定义->dubbo.properties文件
+    // refresh是刷新，将当前ServiceConfig上的set方法所对应的属性更新为优先级最高的值
     public void refresh() {
         refreshed.set(true);
         try {
-            // check and init before do refresh
+            // 在刷新之前检查并初始化  check and init before do refresh
             preProcessRefresh();
 
             Environment environment = getScopeModel().getModelEnvironment();
             List<Map<String, String>> configurationMaps = environment.getConfigurationMaps();
 
-            // Search props starts with PREFIX in order
+            // 搜索 props 以 PREFIX 开头的顺序 Search props starts with PREFIX in order
             String preferredPrefix = null;
             for (String prefix : getPrefixes()) {
                 if (ConfigurationUtils.hasSubProperties(configurationMaps, prefix)) {
@@ -665,7 +667,7 @@ public abstract class AbstractConfig implements Serializable {
             if (preferredPrefix == null) {
                 preferredPrefix = getPrefixes().get(0);
             }
-            // Extract sub props (which key was starts with preferredPrefix)
+            // 提取子扩展（哪个键以首选前缀开头） Extract sub props (which key was starts with preferredPrefix)
             Collection<Map<String, String>> instanceConfigMaps = environment.getConfigurationMaps(this, preferredPrefix);
             Map<String, String> subProperties = ConfigurationUtils.getSubProperties(instanceConfigMaps, preferredPrefix);
             InmemoryConfiguration subPropsConfiguration = new InmemoryConfiguration(subProperties);
@@ -699,18 +701,18 @@ public abstract class AbstractConfig implements Serializable {
     }
 
     private void assignProperties(Object obj, Environment environment, Map<String, String> properties, InmemoryConfiguration configuration) {
-        // if old one (this) contains non-null value, do not override
+        //  如果旧的（this）包含非空值，请不要覆盖  if old one (this) contains non-null value, do not override
         boolean overrideIfAbsent = getConfigMode() == ConfigMode.OVERRIDE_IF_ABSENT;
 
-        // even if old one (this) contains non-null value, do override
+        // 即使旧的（this）包含非空值，也要覆盖 even if old one (this) contains non-null value, do override
         boolean overrideAll = getConfigMode() == ConfigMode.OVERRIDE_ALL;
 
-        // loop methods, get override value and set the new value back to method
+        // 循环方法，获取覆盖值并将新值设置回方法 loop methods, get override value and set the new value back to method
         List<Method> methods = MethodUtils.getMethods(obj.getClass(), method -> method.getDeclaringClass() != Object.class);
         for (Method method : methods) {
+            // 是不是setXX()方法
             if (MethodUtils.isSetter(method)) {
                 String propertyName = extractPropertyName(method.getName());
-
                 // if config mode is OVERRIDE_IF_ABSENT and property has set, skip
                 if (overrideIfAbsent && isPropertySet(propertyName)) {
                     continue;
@@ -718,8 +720,8 @@ public abstract class AbstractConfig implements Serializable {
 
                 // convert camelCase/snake_case to kebab-case
                 String kebabPropertyName = StringUtils.convertToSplitName(propertyName, "-");
-
                 try {
+                    // 获取xx配置项的value
                     String value = StringUtils.trim(configuration.getString(kebabPropertyName));
                     // isTypeMatch() is called to avoid duplicate and incorrect update, for example, we have two 'setGeneric' methods in ReferenceConfig.
                     if (StringUtils.hasText(value)
@@ -733,9 +735,9 @@ public abstract class AbstractConfig implements Serializable {
                         obj.getClass().getSimpleName() +
                         ", please make sure every property has getter/setter method provided.");
                 }
+                // 是不是setParameters()方法
             } else if (isParametersSetter(method)) {
                 String propertyName = extractPropertyName(method.getName());
-
                 // get old map from original obj
                 Map<String, String> oldMap = null;
                 try {

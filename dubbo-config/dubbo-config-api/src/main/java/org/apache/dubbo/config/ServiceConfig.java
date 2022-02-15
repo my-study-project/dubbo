@@ -271,9 +271,9 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
     private void checkAndUpdateSubConfigs() {
 
-        // 使用在全局范围内明确定义的默认配置
+        // 使用在全局范围内明确定义的默认配置 ServiceConfig中的某些属性如果是空的，那么就从ProviderConfig、ModuleConfig、ApplicationConfig中获取
         completeCompoundConfigs();
-
+        // 如果没有单独的配置protocols，那么就从provider获取配置的协议，添加到的ServiceConfig中去 假如在配置文件中配了一个dubbo协议，配置中心的全局配置或应用配置中也配置了一个协议，那么就会被添加到ServiceConfig中
         checkProtocol();
 
         // 初始化一些空配置

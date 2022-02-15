@@ -578,7 +578,7 @@ public class ServiceAnnotationPostProcessor implements BeanDefinitionRegistryPos
     }
 
     private void registerServiceBeanDefinition(String serviceBeanName, AbstractBeanDefinition serviceBeanDefinition, String serviceInterface) {
-        // check service bean
+        // 检查服务 bean  check service bean
         if (registry.containsBeanDefinition(serviceBeanName)) {
             BeanDefinition existingDefinition = registry.getBeanDefinition(serviceBeanName);
             if (existingDefinition.equals(serviceBeanDefinition)) {
