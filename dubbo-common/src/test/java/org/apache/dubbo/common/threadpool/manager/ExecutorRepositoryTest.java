@@ -18,8 +18,11 @@ package org.apache.dubbo.common.threadpool.manager;
 
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.rpc.model.ApplicationModel;
+import org.apache.dubbo.rpc.model.FrameworkModel;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ExecutorService;
@@ -27,7 +30,19 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ExecutorRepositoryTest {
-    private ExecutorRepository executorRepository = ApplicationModel.defaultModel().getExtensionLoader(ExecutorRepository.class).getDefaultExtension();
+    private ApplicationModel applicationModel;
+    private ExecutorRepository executorRepository;
+
+    @BeforeEach
+    public void setup() {
+        applicationModel = FrameworkModel.defaultModel().newApplication();
+        executorRepository = applicationModel.getExtensionLoader(ExecutorRepository.class).getDefaultExtension();
+    }
+
+    @AfterEach
+    public void teardown() {
+        applicationModel.destroy();
+    }
 
     @Test
     public void testGetExecutor() {

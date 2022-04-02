@@ -240,9 +240,7 @@ public abstract class ReferenceConfigBase<T> extends AbstractReferenceConfig {
         }
         setInterface(interfaceClass == null ? null : interfaceClass.getName());
         this.interfaceClass = interfaceClass;
-        if (getInterfaceClassLoader() == null) {
-            setInterfaceClassLoader(interfaceClass == null ? null : interfaceClass.getClassLoader());
-        }
+        setInterfaceClassLoader(interfaceClass == null ? null : interfaceClass.getClassLoader());
     }
 
     public String getClient() {
@@ -318,11 +316,9 @@ public abstract class ReferenceConfigBase<T> extends AbstractReferenceConfig {
 
     @Override
     protected void computeValidRegistryIds() {
-        if (consumer != null) {
-            if (notHasSelfRegistryProperty()) {
-                setRegistries(consumer.getRegistries());
-                setRegistryIds(consumer.getRegistryIds());
-            }
+        if (consumer != null && notHasSelfRegistryProperty()) {
+            setRegistries(consumer.getRegistries());
+            setRegistryIds(consumer.getRegistryIds());
         }
         super.computeValidRegistryIds();
     }

@@ -19,6 +19,7 @@ package org.apache.dubbo.config;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.URLBuilder;
 import org.apache.dubbo.common.Version;
+import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.extension.ExtensionLoader;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
@@ -38,6 +39,7 @@ import org.apache.dubbo.rpc.Exporter;
 import org.apache.dubbo.rpc.Invoker;
 import org.apache.dubbo.rpc.Protocol;
 import org.apache.dubbo.rpc.ProxyFactory;
+import org.apache.dubbo.rpc.ServerService;
 import org.apache.dubbo.rpc.cluster.ConfiguratorFactory;
 import org.apache.dubbo.rpc.model.ModuleModel;
 import org.apache.dubbo.rpc.model.ModuleServiceRepository;
@@ -62,12 +64,10 @@ import static org.apache.dubbo.common.constants.CommonConstants.ANY_VALUE;
 import static org.apache.dubbo.common.constants.CommonConstants.DUBBO;
 import static org.apache.dubbo.common.constants.CommonConstants.DUBBO_IP_TO_BIND;
 import static org.apache.dubbo.common.constants.CommonConstants.LOCALHOST_VALUE;
-import static org.apache.dubbo.common.constants.CommonConstants.METADATA_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.METHODS_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.MONITOR_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.PROVIDER_SIDE;
 import static org.apache.dubbo.common.constants.CommonConstants.REGISTER_KEY;
-import static org.apache.dubbo.common.constants.CommonConstants.REMOTE_METADATA_STORAGE_TYPE;
 import static org.apache.dubbo.common.constants.CommonConstants.REVISION_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.SERVICE_NAME_MAPPING_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.SIDE_KEY;
@@ -376,7 +376,14 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
     private void doExportUrls() {
         // 1、获取当前的服务管理配置
         ModuleServiceRepository repository = getScopeModel().getServiceRepository();
-        ServiceDescriptor serviceDescriptor = repository.registerService(getInterfaceClass());
+        ServiceDescriptor serviceDescriptor;
+        final boolean serverService = ref instanceof ServerService;
+        if(serverService){
+            serviceDescriptor=((ServerService) ref).getServiceDescriptor();
+            repository.registerService(serviceDescriptor);
+        }else{
+            serviceDescriptor = repository.registerService(getInterfaceClass());
+        }
         providerModel = new ProviderModel(getUniqueServiceName(),
             ref,
             serviceDescriptor,
@@ -392,9 +399,11 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             String pathKey = URL.buildKey(getContextPath(protocolConfig)
                     .map(p -> p + "/" + path)
                     .orElse(path), group, version);
-            // In case user specified path, register service one more time to map it to path.
-            // 如果用户指定路径，则再注册一次服务以将其映射到路径。
-            repository.registerService(pathKey, interfaceClass);
+            // stub service will use generated service name
+            if(!serverService) {
+                // 如果用户指定路径，则再注册一次服务以将其映射到路径。
+                repository.registerService(pathKey, interfaceClass);
+            }
             doExportUrlsFor1Protocol(protocolConfig, registryURLs);
         }
     }
@@ -439,11 +448,6 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         AbstractConfig.appendParameters(map, this);
         appendMetricsCompatible(map);
 
-        MetadataReportConfig metadataReportConfig = getMetadataReportConfig();
-        if (metadataReportConfig != null && metadataReportConfig.isValid()) {
-            map.putIfAbsent(METADATA_KEY, REMOTE_METADATA_STORAGE_TYPE);
-        }
-
         // append params with method configs,
         if (CollectionUtils.isNotEmpty(getMethods())) {
             getMethods().forEach(method -> appendParametersWithMethod(method, map));
@@ -480,6 +484,10 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             } else {
                 map.put(TOKEN_KEY, token);
             }
+        }
+
+        if(ref instanceof ServerService){
+            map.put(PROXY_KEY, CommonConstants.NATIVE_STUB);
         }
 
         return map;
@@ -573,7 +581,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                     .getExtension(url.getProtocol()).getConfigurator(url).configure(url);
         }
         url = url.setScopeModel(getScopeModel());
-        url =  url.setServiceModel(providerModel);
+        url = url.setServiceModel(providerModel);
         return url;
     }
 
@@ -625,9 +633,9 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
                 if (logger.isInfoEnabled()) {
                     if (url.getParameter(REGISTER_KEY, true)) {
-                        logger.info("Register dubbo service " + interfaceClass.getName() + " url " + url.getServiceKey() + " to registry " + registryURL.getAddress());
+                        logger.info("Register dubbo service " + interfaceClass.getName() + " url " + url + " to registry " + registryURL.getAddress());
                     } else {
-                        logger.info("Export dubbo service " + interfaceClass.getName() + " to url " + url.getServiceKey());
+                        logger.info("Export dubbo service " + interfaceClass.getName() + " to url " + url);
                     }
                 }
 

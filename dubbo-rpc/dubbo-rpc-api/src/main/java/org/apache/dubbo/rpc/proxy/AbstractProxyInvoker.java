@@ -86,13 +86,13 @@ public abstract class AbstractProxyInvoker<T> implements Invoker<T> {
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
         try {
+            ProfilerEntry originEntry = null;
             if (ProfilerSwitch.isEnableSimpleProfiler()) {
                 Object fromInvocation = invocation.get(Profiler.PROFILER_KEY);
                 if (fromInvocation instanceof ProfilerEntry) {
                     ProfilerEntry profiler = Profiler.enter((ProfilerEntry) fromInvocation, "Receive request. Server biz impl invoke begin.");
                     invocation.put(Profiler.PROFILER_KEY, profiler);
-                    // TODO clear after invoke
-                    Profiler.setToBizProfiler(profiler);
+                    originEntry = Profiler.setToBizProfiler(profiler);
                 }
             }
 
@@ -106,6 +106,9 @@ public abstract class AbstractProxyInvoker<T> implements Invoker<T> {
                 }
             }
             Profiler.removeBizProfiler();
+            if (originEntry != null) {
+                Profiler.setToBizProfiler(originEntry);
+            }
 
             CompletableFuture<Object> future = wrapWithFuture(value, invocation);
             CompletableFuture<AppResponse> appResponseFuture = future.handle((obj, t) -> {
@@ -138,7 +141,7 @@ public abstract class AbstractProxyInvoker<T> implements Invoker<T> {
             return (CompletableFuture<Object>) value;
         } else if (RpcContext.getServerAttachment().isAsyncStarted()) {
             invocation.put(PROVIDER_ASYNC_KEY, Boolean.TRUE);
-            return ((AsyncContextImpl) (RpcContext.getServiceContext().getAsyncContext())).getInternalFuture();
+            return ((AsyncContextImpl) (RpcContext.getServerAttachment().getAsyncContext())).getInternalFuture();
         }
         return CompletableFuture.completedFuture(value);
     }

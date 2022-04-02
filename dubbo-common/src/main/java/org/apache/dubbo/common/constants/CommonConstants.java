@@ -217,6 +217,10 @@ public interface CommonConstants {
 
     String METADATA_KEY = "metadata-type";
 
+    String REPORT_METADATA_KEY = "report-metadata";
+
+    String REPORT_DEFINITION_KEY = "report-definition";
+
     String DEFAULT_METADATA_STORAGE_TYPE = "local";
 
     String REMOTE_METADATA_STORAGE_TYPE = "remote";
@@ -529,4 +533,6 @@ public interface CommonConstants {
     String SET_FUTURE_IN_SYNC_MODE = "future.sync.set";
 
     String CLEAR_FUTURE_AFTER_GET = "future.clear.once";
+
+    String NATIVE_STUB = "nativestub";
 }

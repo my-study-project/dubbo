@@ -34,6 +34,7 @@ import org.apache.dubbo.common.lang.ShutdownHookCallbacks;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.threadpool.manager.ExecutorRepository;
+import org.apache.dubbo.common.threadpool.manager.FrameworkExecutorRepository;
 import org.apache.dubbo.common.utils.ArrayUtils;
 import org.apache.dubbo.common.utils.CollectionUtils;
 import org.apache.dubbo.common.utils.StringUtils;
@@ -93,6 +94,7 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
 
     private final ReferenceCache referenceCache;
 
+    private final FrameworkExecutorRepository frameworkExecutorRepository;
     private final ExecutorRepository executorRepository;
 
     private final AtomicBoolean hasPreparedApplicationInstance = new AtomicBoolean(false);
@@ -113,6 +115,7 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
         environment = applicationModel.getModelEnvironment();
 
         referenceCache = new CompositeReferenceCache(applicationModel);
+        frameworkExecutorRepository = applicationModel.getFrameworkModel().getBeanFactory().getBean(FrameworkExecutorRepository.class);
         executorRepository = getExtensionLoader(ExecutorRepository.class).getDefaultExtension();
         dubboShutdownHook = new DubboShutdownHook(applicationModel);
 
@@ -281,10 +284,6 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
         List<MetadataReportConfig> validMetadataReportConfigs = new ArrayList<>(metadataReportConfigs.size());
         for (MetadataReportConfig metadataReportConfig : metadataReportConfigs) {
             ConfigValidationUtils.validateMetadataConfig(metadataReportConfig);
-            if (!metadataReportConfig.isValid()) {
-                logger.warn("Ignore invalid metadata-report config: " + metadataReportConfig);
-                continue;
-            }
             validMetadataReportConfigs.add(metadataReportConfig);
         }
         metadataReportInstance.init(validMetadataReportConfigs);
@@ -379,11 +378,23 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
                 .filter(this::isUsedRegistryAsMetadataCenter)
                 .map(this::registryAsMetadataCenter)
                 .forEach(metadataReportConfig -> {
-                    Optional<MetadataReportConfig> configOptional = configManager.getConfig(MetadataReportConfig.class, metadataReportConfig.getId());
-                    if (configOptional.isPresent()) {
-                        return;
+                    if (metadataReportConfig.getId() == null) {
+                        Collection<MetadataReportConfig> metadataReportConfigs = configManager.getMetadataConfigs();
+                        if (CollectionUtils.isNotEmpty(metadataReportConfigs)) {
+                            for (MetadataReportConfig existedConfig : metadataReportConfigs) {
+                                if (existedConfig.getId() == null && existedConfig.getAddress().equals(metadataReportConfig.getAddress())) {
+                                    return;
+                                }
+                            }
+                        }
+                        configManager.addMetadataReport(metadataReportConfig);
+                    } else {
+                        Optional<MetadataReportConfig> configOptional = configManager.getConfig(MetadataReportConfig.class, metadataReportConfig.getId());
+                        if (configOptional.isPresent()) {
+                            return;
+                        }
+                        configManager.addMetadataReport(metadataReportConfig);
                     }
-                    configManager.addMetadataReport(metadataReportConfig);
                     logger.info("use registry as metadata-center: " + metadataReportConfig);
                 });
         }
@@ -447,9 +458,8 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
     private MetadataReportConfig registryAsMetadataCenter(RegistryConfig registryConfig) {
         String protocol = registryConfig.getProtocol();
         URL url = URL.valueOf(registryConfig.getAddress(), registryConfig.getScopeModel());
-        String id = "metadata-center-" + protocol + "-" + url.getHost() + "-" + url.getPort();
         MetadataReportConfig metadataReportConfig = new MetadataReportConfig();
-        metadataReportConfig.setId(id);
+        metadataReportConfig.setId(registryConfig.getId());
         metadataReportConfig.setScopeModel(applicationModel);
         if (metadataReportConfig.getParameters() == null) {
             metadataReportConfig.setParameters(new HashMap<>());
@@ -717,7 +727,7 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
         }
         if (registered) {
             // scheduled task for updating Metadata and ServiceInstance
-            asyncMetadataFuture = executorRepository.getSharedScheduledExecutor().scheduleWithFixedDelay(() -> {
+            asyncMetadataFuture = frameworkExecutorRepository.getSharedScheduledExecutor().scheduleWithFixedDelay(() -> {
 
                 // ignore refresh metadata on stopping
                 if (applicationModel.isDestroyed()) {
@@ -755,6 +765,10 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
             }
             onStopping();
 
+            destroyRegistries();
+            destroyServiceDiscoveries();
+            destroyMetadataReports();
+
             unRegisterShutdownHook();
             if (asyncMetadataFuture != null) {
                 asyncMetadataFuture.cancel(true);
@@ -772,10 +786,6 @@ public class DefaultApplicationDeployer extends AbstractDeployer<ApplicationMode
             }
             try {
                 executeShutdownCallbacks();
-
-                destroyRegistries();
-                destroyServiceDiscoveries();
-                destroyMetadataReports();
 
                 // TODO should we close unused protocol server which only used by this application?
                 // protocol server will be closed on all applications of same framework are stopped currently, but no associate to application

@@ -165,6 +165,9 @@ public class ApplicationConfig extends AbstractConfig {
      */
     private String metadataType;
 
+    /**
+     * Used to control whether register instance to registry or not. Set to 'false' only when instance is pure consumer.
+     */
     private Boolean registerConsumer;
 
     private String repository;
@@ -279,18 +282,16 @@ public class ApplicationConfig extends AbstractConfig {
     }
 
     public void setEnvironment(String environment) {
-        if (environment != null) {
-            if (!(DEVELOPMENT_ENVIRONMENT.equals(environment)
-                || TEST_ENVIRONMENT.equals(environment)
-                || PRODUCTION_ENVIRONMENT.equals(environment))) {
+        if (environment != null && !(DEVELOPMENT_ENVIRONMENT.equals(environment)
+            || TEST_ENVIRONMENT.equals(environment)
+            || PRODUCTION_ENVIRONMENT.equals(environment))) {
 
-                throw new IllegalStateException(String.format("Unsupported environment: %s, only support %s/%s/%s, default is %s.",
-                    environment,
-                    DEVELOPMENT_ENVIRONMENT,
-                    TEST_ENVIRONMENT,
-                    PRODUCTION_ENVIRONMENT,
-                    PRODUCTION_ENVIRONMENT));
-            }
+            throw new IllegalStateException(String.format("Unsupported environment: %s, only support %s/%s/%s, default is %s.",
+                environment,
+                DEVELOPMENT_ENVIRONMENT,
+                TEST_ENVIRONMENT,
+                PRODUCTION_ENVIRONMENT,
+                PRODUCTION_ENVIRONMENT));
         }
         this.environment = environment;
     }

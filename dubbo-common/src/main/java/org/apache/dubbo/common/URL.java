@@ -20,6 +20,7 @@ import org.apache.dubbo.common.config.Configuration;
 import org.apache.dubbo.common.config.InmemoryConfiguration;
 import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.constants.RemotingConstants;
+import org.apache.dubbo.common.convert.ConverterUtil;
 import org.apache.dubbo.common.url.component.PathURLAddress;
 import org.apache.dubbo.common.url.component.ServiceConfigURL;
 import org.apache.dubbo.common.url.component.URLAddress;
@@ -61,6 +62,8 @@ import static org.apache.dubbo.common.constants.CommonConstants.ANYHOST_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.ANYHOST_VALUE;
 import static org.apache.dubbo.common.constants.CommonConstants.APPLICATION_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.COMMA_SPLIT_PATTERN;
+import static org.apache.dubbo.common.constants.CommonConstants.CONSUMER;
+import static org.apache.dubbo.common.constants.CommonConstants.GROUP_CHAR_SEPARATOR;
 import static org.apache.dubbo.common.constants.CommonConstants.GROUP_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.HOST_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.INTERFACE_KEY;
@@ -74,7 +77,6 @@ import static org.apache.dubbo.common.constants.CommonConstants.SIDE_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.USERNAME_KEY;
 import static org.apache.dubbo.common.constants.CommonConstants.VERSION_KEY;
 import static org.apache.dubbo.common.constants.RegistryConstants.CATEGORY_KEY;
-import static org.apache.dubbo.common.convert.Converter.convertIfPossible;
 import static org.apache.dubbo.common.utils.StringUtils.isBlank;
 
 /**
@@ -588,7 +590,7 @@ class URL implements Serializable {
         String value = getParameter(key);
         T result = null;
         if (!isBlank(value)) {
-            result = convertIfPossible(value, valueType);
+            result = getOrDefaultFrameworkModel().getBeanFactory().getBean(ConverterUtil.class).convertIfPossible(value, valueType);
         }
         if (result == null) {
             result = defaultValue;
@@ -1118,7 +1120,7 @@ class URL implements Serializable {
             return this;
         }
         if (pairs.length % 2 != 0) {
-            throw new IllegalArgumentException("Map pairs can not be odd numrer.");
+            throw new IllegalArgumentException("Map pairs can not be odd number.");
         }
         Map<String, String> map = new HashMap<>();
         int len = pairs.length / 2;
@@ -1398,7 +1400,14 @@ class URL implements Serializable {
         if (protocolServiceKey != null) {
             return protocolServiceKey;
         }
-        this.protocolServiceKey = getServiceKey() + ":" + getProtocol();
+        this.protocolServiceKey = getServiceKey();
+        /*
+        Special treatment if this is a consumer subscription url instance with no protocol specified - starts with 'consumer://'
+        If the specific protocol is specified on the consumer side, then this method will return as normal.
+        */
+        if (!CONSUMER.equals(getProtocol())) {
+            this.protocolServiceKey += (GROUP_CHAR_SEPARATOR + getProtocol());
+        }
         return protocolServiceKey;
     }
 
