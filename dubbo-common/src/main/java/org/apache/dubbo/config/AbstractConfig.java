@@ -710,12 +710,13 @@ public abstract class AbstractConfig implements Serializable {
 
         // 循环方法，获取覆盖值并将新值设置回方法 loop methods, get override value and set the new value back to method
         List<Method> methods = MethodUtils.getMethods(obj.getClass(), method -> method.getDeclaringClass() != Object.class);
+        Method[] methodsList = this.getClass().getDeclaredMethods();
         for (Method method : methods) {
             // 是不是setXX()方法
             if (MethodUtils.isSetter(method)) {
                 String propertyName = extractPropertyName(method.getName());
                 // if config mode is OVERRIDE_IF_ABSENT and property has set, skip
-                if (overrideIfAbsent && isPropertySet(propertyName)) {
+                if (overrideIfAbsent && isPropertySet(methodsList, propertyName)) {
                     continue;
                 }
 
@@ -794,10 +795,13 @@ public abstract class AbstractConfig implements Serializable {
         }
     }
 
-    private boolean isPropertySet(String propertyName) {
+    private boolean isPropertySet(Method[] methods, String propertyName) {
         try {
             String getterName = calculatePropertyToGetter(propertyName);
-            Method getterMethod = this.getClass().getDeclaredMethod(getterName);
+            Method getterMethod = findGetMethod(methods,getterName);
+            if (getterMethod == null) {
+                return false;
+            }
             Object oldOne = getterMethod.invoke(this);
             if (oldOne != null) {
                 return true;
@@ -806,6 +810,15 @@ public abstract class AbstractConfig implements Serializable {
 
         }
         return false;
+    }
+
+    private Method findGetMethod(Method[] methods, String methodName) {
+        for (Method method : methods) {
+            if (method.getName().equals(methodName) && method.getParameterCount() == 0) {
+                return method;
+            }
+        }
+        return null;
     }
 
     private void invokeSetParameters(Map<String, String> values, Object obj) {
