@@ -125,7 +125,14 @@ public class DefaultModuleDeployer extends AbstractDeployer<ModuleModel> impleme
     }
 
     @Override
-    public synchronized Future start() throws IllegalStateException {
+    public Future start() throws IllegalStateException {
+        // initialize，maybe deadlock applicationDeployer lock & moduleDeployer lock
+        applicationDeployer.initialize();
+
+        return startSync();
+    }
+
+    private synchronized Future startSync() throws IllegalStateException {
         if (isStopping() || isStopped() || isFailed()) {
             throw new IllegalStateException(getIdentifier() + " is stopping or stopped, can not start again");
         }
@@ -137,8 +144,7 @@ public class DefaultModuleDeployer extends AbstractDeployer<ModuleModel> impleme
 
             onModuleStarting();
 
-            // initialize
-            applicationDeployer.initialize();
+
             initialize();
 
             // export services
@@ -213,10 +219,8 @@ public class DefaultModuleDeployer extends AbstractDeployer<ModuleModel> impleme
 
             for (ConsumerModel consumerModel : consumerModels) {
                 try {
-                    if (consumerModel.getReferenceConfig() != null) {
-                        consumerModel.getReferenceConfig().destroy();
-                    } else if (consumerModel.getDestroyCaller() != null) {
-                        consumerModel.getDestroyCaller().call();
+                    if (consumerModel.getDestroyRunner() != null) {
+                        consumerModel.getDestroyRunner().run();
                     }
                 } catch (Throwable t) {
                     logger.error("Unable to destroy consumerModel.", t);
@@ -226,10 +230,8 @@ public class DefaultModuleDeployer extends AbstractDeployer<ModuleModel> impleme
             List<ProviderModel> exportedServices = serviceRepository.getExportedServices();
             for (ProviderModel providerModel : exportedServices) {
                 try {
-                    if (providerModel.getServiceConfig() != null) {
-                        providerModel.getServiceConfig().unexport();
-                    } else if (providerModel.getDestroyCaller() != null) {
-                        providerModel.getDestroyCaller().call();
+                    if (providerModel.getDestroyRunner() != null) {
+                        providerModel.getDestroyRunner().run();
                     }
                 } catch (Throwable t) {
                     logger.error("Unable to destroy providerModel.", t);

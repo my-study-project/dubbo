@@ -162,6 +162,10 @@ public abstract class AbstractConfig implements Serializable {
         appendParameters0(parameters, config, null, false);
     }
 
+    public static void appendAttributes(Map<String, String> parameters, Object config, String prefix) {
+        appendParameters0(parameters, config, prefix, false);
+    }
+
     private static void appendParameters0(Map<String, String> parameters, Object config, String prefix, boolean asParameters) {
         if (config == null) {
             return;
@@ -259,6 +263,10 @@ public abstract class AbstractConfig implements Serializable {
 
     private static String calculatePropertyToGetter(String name) {
         return "get" + name.substring(0, 1).toUpperCase() + name.substring(1);
+    }
+
+    private static String calculatePropertyToSetter(String name) {
+        return "set" + name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 
     private static String calculatePropertyFromGetter(String name) {
@@ -468,7 +476,7 @@ public abstract class AbstractConfig implements Serializable {
                     if ("interfaceClass".equals(property) || "interfaceName".equals(property)) {
                         property = "interface";
                     }
-                    String setter = "set" + property.substring(0, 1).toUpperCase() + property.substring(1);
+                    String setter = calculatePropertyToSetter(property);
                     Object value = method.invoke(annotation);
                     if (value != null && !value.equals(method.getDefaultValue())) {
                         Class<?> parameterType = ReflectUtils.getBoxedClass(method.getReturnType());
@@ -496,7 +504,7 @@ public abstract class AbstractConfig implements Serializable {
     /**
      * <p>
      * <b>The new instance of the AbstractConfig subclass should return empty metadata.</b>
-     * The purpose is is to get the attributes set by the user instead of the default value when the {@link #refresh()} method handles attribute overrides.
+     * The purpose is to get the attributes set by the user instead of the default value when the {@link #refresh()} method handles attribute overrides.
      * </p>
      *
      * <p><b>The default value of the field should be set in the {@link #checkDefault()} method</b>,
@@ -514,8 +522,12 @@ public abstract class AbstractConfig implements Serializable {
      * @see AbstractConfig#appendParameters(Map, Object, String)
      */
     public Map<String, String> getMetaData() {
+        return getMetaData(null);
+    }
+
+    public Map<String, String> getMetaData(String prefix) {
         Map<String, String> metaData = new HashMap<>();
-        appendAttributes(metaData, this);
+        appendAttributes(metaData, this, prefix);
         return metaData;
     }
 
@@ -594,7 +606,7 @@ public abstract class AbstractConfig implements Serializable {
                     if (overrideAll || oldOne == null) {
                         Object newResult = getterMethod.invoke(newOne);
                         // if new one is non-null and new one is not equals old one
-                        if (newResult != null && Objects.equals(newResult, oldOne)) {
+                        if (newResult != null && !Objects.equals(newResult, oldOne)) {
                             method.invoke(this, newResult);
                         }
                     }
@@ -649,7 +661,6 @@ public abstract class AbstractConfig implements Serializable {
     // 比如可以从系统变量->配置中心应用配置->配置中心全局配置->注解或xml中定义->dubbo.properties文件
     // refresh是刷新，将当前ServiceConfig上的set方法所对应的属性更新为优先级最高的值
     public void refresh() {
-        refreshed.set(true);
         try {
             // 在刷新之前检查并初始化  check and init before do refresh
             preProcessRefresh();
@@ -659,14 +670,15 @@ public abstract class AbstractConfig implements Serializable {
 
             // 搜索 props 以 PREFIX 开头的顺序 Search props starts with PREFIX in order
             String preferredPrefix = null;
-            for (String prefix : getPrefixes()) {
+            List<String> prefixes = getPrefixes();
+            for (String prefix : prefixes) {
                 if (ConfigurationUtils.hasSubProperties(configurationMaps, prefix)) {
                     preferredPrefix = prefix;
                     break;
                 }
             }
             if (preferredPrefix == null) {
-                preferredPrefix = getPrefixes().get(0);
+                preferredPrefix = prefixes.get(0);
             }
             // 提取子扩展（哪个键以首选前缀开头） Extract sub props (which key was starts with preferredPrefix)
             Collection<Map<String, String>> instanceConfigMaps = environment.getConfigurationMaps(this, preferredPrefix);
@@ -699,6 +711,7 @@ public abstract class AbstractConfig implements Serializable {
         }
 
         postProcessRefresh();
+        refreshed.set(true);
     }
 
     private void assignProperties(Object obj, Environment environment, Map<String, String> properties, InmemoryConfiguration configuration) {
@@ -740,6 +753,20 @@ public abstract class AbstractConfig implements Serializable {
                 // 是不是setParameters()方法
             } else if (isParametersSetter(method)) {
                 String propertyName = extractPropertyName(method.getName());
+
+                String value = StringUtils.trim(configuration.getString(propertyName));
+                Map<String, String> parameterMap;
+                if (StringUtils.hasText(value)) {
+                    parameterMap = StringUtils.parseParameters(value);
+                } else {
+                    // in this case, maybe parameters.item3=value3.
+                    parameterMap = ConfigurationUtils.getSubProperties(properties, PARAMETERS);
+                }
+                Map<String, String> newMap = convert(parameterMap, "");
+                if (CollectionUtils.isEmptyMap(newMap)) {
+                    continue;
+                }
+
                 // get old map from original obj
                 Map<String, String> oldMap = null;
                 try {
@@ -752,16 +779,6 @@ public abstract class AbstractConfig implements Serializable {
                 } catch (Exception ignore) {
 
                 }
-
-                String value = StringUtils.trim(configuration.getString(propertyName));
-                Map<String, String> parameterMap;
-                if (StringUtils.hasText(value)) {
-                    parameterMap = StringUtils.parseParameters(value);
-                } else {
-                    // in this case, maybe parameters.item3=value3.
-                    parameterMap = ConfigurationUtils.getSubProperties(properties, PARAMETERS);
-                }
-                Map<String, String> newMap = convert(parameterMap, "");
 
                 // if old map is null, directly set params
                 if (oldMap == null) {
@@ -825,8 +842,11 @@ public abstract class AbstractConfig implements Serializable {
         if (CollectionUtils.isEmptyMap(values)) {
             return;
         }
-        Map<String, String> map = invokeGetParameters(obj.getClass(), obj);
-        map = map == null ? new HashMap<>() : map;
+        Map<String, String> map = new HashMap<>();
+        Map<String, String> getParametersMap = invokeGetParameters(obj.getClass(), obj);
+        if (getParametersMap != null && !getParametersMap.isEmpty()) {
+            map.putAll(getParametersMap);
+        }
         map.putAll(values);
         invokeSetParameters(obj.getClass(), obj, map);
     }
@@ -916,17 +936,15 @@ public abstract class AbstractConfig implements Serializable {
             buf.append(getTagName(getClass()));
             for (Method method : getAttributedMethods()) {
                 try {
-                    if (MethodUtils.isGetter(method)) {
-                        String name = method.getName();
-                        String key = calculateAttributeFromGetter(name);
-                        Object value = method.invoke(this);
-                        if (value != null) {
-                            buf.append(' ');
-                            buf.append(key);
-                            buf.append("=\"");
-                            buf.append(key.equals("password") ? "******" : value);
-                            buf.append('\"');
-                        }
+                    String name = method.getName();
+                    String key = calculateAttributeFromGetter(name);
+                    Object value = method.invoke(this);
+                    if (value != null) {
+                        buf.append(' ');
+                        buf.append(key);
+                        buf.append("=\"");
+                        buf.append(key.equals("password") ? "******" : value);
+                        buf.append('\"');
                     }
                 } catch (Exception e) {
                     logger.warn(e.getMessage(), e);

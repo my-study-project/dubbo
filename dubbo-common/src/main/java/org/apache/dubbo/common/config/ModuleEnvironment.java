@@ -126,27 +126,28 @@ public class ModuleEnvironment extends Environment implements ModuleExt {
     public void destroy() throws IllegalStateException {
         super.destroy();
         this.orderedPropertiesConfiguration = null;
-        this.globalConfiguration = null;
-        this.dynamicGlobalConfiguration = null;
-        this.dynamicConfiguration = null;
     }
 
     @Override
+    @DisableInject
     public void setLocalMigrationRule(String localMigrationRule) {
         applicationDelegate.setLocalMigrationRule(localMigrationRule);
     }
 
     @Override
+    @DisableInject
     public void setExternalConfigMap(Map<String, String> externalConfiguration) {
         applicationDelegate.setExternalConfigMap(externalConfiguration);
     }
 
     @Override
+    @DisableInject
     public void setAppExternalConfigMap(Map<String, String> appExternalConfiguration) {
         applicationDelegate.setAppExternalConfigMap(appExternalConfiguration);
     }
 
     @Override
+    @DisableInject
     public void setAppConfigMap(Map<String, String> appConfiguration) {
         applicationDelegate.setAppConfigMap(appConfiguration);
     }
@@ -220,8 +221,5 @@ public class ModuleEnvironment extends Environment implements ModuleExt {
     public void refreshClassLoaders() {
         orderedPropertiesConfiguration.refresh();
         applicationDelegate.refreshClassLoaders();
-        this.globalConfiguration = null;
-        this.globalConfigurationMaps = null;
-        this.dynamicGlobalConfiguration = null;
     }
 }

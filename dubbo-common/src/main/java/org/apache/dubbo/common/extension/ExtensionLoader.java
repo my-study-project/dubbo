@@ -41,6 +41,7 @@ import org.apache.dubbo.rpc.model.FrameworkModel;
 import org.apache.dubbo.rpc.model.ModuleModel;
 import org.apache.dubbo.rpc.model.ScopeModel;
 import org.apache.dubbo.rpc.model.ScopeModelAccessor;
+import org.apache.dubbo.rpc.model.ScopeModelAware;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -134,6 +135,8 @@ public class ExtensionLoader<T> {
 
     private static SoftReference<Map<java.net.URL,List<String>>> urlListMapCache = new SoftReference<>(new ConcurrentHashMap<>());
 
+    private static List<String> ignoredInjectMethodsDesc = getIgnoredInjectMethodsDesc();
+
     /**
      * Record all unacceptable exceptions when using SPI
      */
@@ -185,6 +188,13 @@ public class ExtensionLoader<T> {
      */
     public static List<LoadingStrategy> getLoadingStrategies() {
         return asList(strategies);
+    }
+
+    private static List<String> getIgnoredInjectMethodsDesc() {
+        List<String> ignoreInjectMethodsDesc = new ArrayList<>();
+        Arrays.stream(ScopeModelAware.class.getMethods()).map(ReflectUtils::getDesc).forEach(ignoreInjectMethodsDesc::add);
+        Arrays.stream(ExtensionAccessorAware.class.getMethods()).map(ReflectUtils::getDesc).forEach(ignoreInjectMethodsDesc::add);
+        return ignoreInjectMethodsDesc;
     }
 
     ExtensionLoader(Class<?> type, ExtensionDirector extensionDirector, ScopeModel scopeModel) {
@@ -835,11 +845,23 @@ public class ExtensionLoader<T> {
                     continue;
                 }
                 /**
-                 * Check {@link DisableInject} to see if we need auto injection for this property
+                 * Check {@link DisableInject} to see if we need auto-injection for this property
                  */
                 if (method.isAnnotationPresent(DisableInject.class)) {
                     continue;
                 }
+
+                // When spiXXX implements ScopeModelAware, ExtensionAccessorAware,
+                // the setXXX of ScopeModelAware and ExtensionAccessorAware does not need to be injected
+                if (method.getDeclaringClass() == ScopeModelAware.class) {
+                    continue;
+                }
+                if (instance instanceof ScopeModelAware || instance instanceof ExtensionAccessorAware) {
+                    if (ignoredInjectMethodsDesc.contains(ReflectUtils.getDesc(method))) {
+                        continue;
+                    }
+                }
+
                 Class<?> pt = method.getParameterTypes()[0];
                 if (ReflectUtils.isPrimitives(pt)) {
                     continue;
@@ -909,7 +931,12 @@ public class ExtensionLoader<T> {
             synchronized (cachedClasses) {
                 classes = cachedClasses.get();
                 if (classes == null) {
-                    classes = loadExtensionClasses();
+                    try {
+                        classes = loadExtensionClasses();
+                    } catch (InterruptedException e) {
+                        logger.error("Exception occurred when loading extension class (interface: " + type + ")", e);
+                        throw new IllegalStateException("Exception occurred when loading extension class (interface: " + type + ")", e);
+                    }
                     cachedClasses.set(classes);
                 }
             }
@@ -921,7 +948,7 @@ public class ExtensionLoader<T> {
      * synchronized in getExtensionClasses
      */
     @SuppressWarnings("deprecation")
-    private Map<String, Class<?>> loadExtensionClasses() {
+    private Map<String, Class<?>> loadExtensionClasses() throws InterruptedException {
         checkDestroyed();
         cacheDefaultExtensionName();
 
@@ -939,7 +966,7 @@ public class ExtensionLoader<T> {
         return extensionClasses;
     }
 
-    private void loadDirectory(Map<String, Class<?>> extensionClasses, LoadingStrategy strategy, String type) {
+    private void loadDirectory(Map<String, Class<?>> extensionClasses, LoadingStrategy strategy, String type) throws InterruptedException {
         loadDirectoryInternal(extensionClasses, strategy, type);
         try {
             String oldType = type.replace("org.apache", "com.alibaba");
@@ -976,7 +1003,7 @@ public class ExtensionLoader<T> {
         }
     }
 
-    private void loadDirectoryInternal(Map<String, Class<?>> extensionClasses, LoadingStrategy loadingStrategy, String type) {
+    private void loadDirectoryInternal(Map<String, Class<?>> extensionClasses, LoadingStrategy loadingStrategy, String type) throws InterruptedException {
         String fileName = loadingStrategy.directory() + type;
         try {
             List<ClassLoader> classLoadersToLoad = new LinkedList<>();
@@ -1024,6 +1051,8 @@ public class ExtensionLoader<T> {
                     loadingStrategy.excludedPackages(),
                     loadingStrategy.onlyExtensionClassLoaderPackages());
             }));
+        } catch (InterruptedException e) {
+            throw e;
         } catch (Throwable t) {
             logger.error("Exception occurred when loading extension class (interface: " +
                 type + ", description file: " + fileName + ").", t);
@@ -1088,28 +1117,27 @@ public class ExtensionLoader<T> {
             }
         }
 
-        if (urlListMap.get(resourceURL) != null) {
-            return urlListMap.get(resourceURL);
-        }
+        List<String> contentList = urlListMap.computeIfAbsent(resourceURL,key->{
+            List<String> newContentList = new ArrayList<>();
 
-        List<String> newContentList = new ArrayList<>();
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resourceURL.openStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                final int ci = line.indexOf('#');
-                if (ci >= 0) {
-                    line = line.substring(0, ci);
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(resourceURL.openStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    final int ci = line.indexOf('#');
+                    if (ci >= 0) {
+                        line = line.substring(0, ci);
+                    }
+                    line = line.trim();
+                    if (line.length() > 0) {
+                        newContentList.add(line);
+                    }
                 }
-                line = line.trim();
-                if (line.length() > 0) {
-                    newContentList.add(line);
-                }
+            } catch (IOException e) {
+                throw new RuntimeException(e.getMessage(), e);
             }
-        }
-
-        urlListMap.put(resourceURL, newContentList);
-        return newContentList;
+            return newContentList;
+        });
+        return contentList;
     }
 
     private boolean isIncluded(String className, String... includedPackages) {

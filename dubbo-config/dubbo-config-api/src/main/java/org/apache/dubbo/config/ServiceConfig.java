@@ -278,7 +278,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
         // 初始化一些空配置
         List<ConfigInitializer> configInitializers = this.getExtensionLoader(ConfigInitializer.class)
-                .getActivateExtension(URL.valueOf("configInitializer://", getScopeModel()), (String[]) null);
+            .getActivateExtension(URL.valueOf("configInitializer://", getScopeModel()), (String[]) null);
         configInitializers.forEach(e -> e.initServiceConfig(this));
 
         // if protocol is not injvm checkRegistry  如果协议不是 injvm checkRegistry
@@ -378,18 +378,22 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         ModuleServiceRepository repository = getScopeModel().getServiceRepository();
         ServiceDescriptor serviceDescriptor;
         final boolean serverService = ref instanceof ServerService;
-        if(serverService){
-            serviceDescriptor=((ServerService) ref).getServiceDescriptor();
+        if (serverService) {
+            serviceDescriptor = ((ServerService) ref).getServiceDescriptor();
             repository.registerService(serviceDescriptor);
-        }else{
+        } else {
             serviceDescriptor = repository.registerService(getInterfaceClass());
         }
-        providerModel = new ProviderModel(getUniqueServiceName(),
+        providerModel = new ProviderModel(serviceMetadata.getServiceKey(),
             ref,
             serviceDescriptor,
-            this,
             getScopeModel(),
-            serviceMetadata);
+            serviceMetadata, interfaceClassLoader);
+
+        // Compatible with dependencies on ServiceModel#getServiceConfig(), and will be removed in a future version
+        providerModel.setConfig(this);
+
+        providerModel.setDestroyRunner(getDestroyRunner());
         // 2、注册生产者
         repository.registerProvider(providerModel);
         // 3、解析当所有的URL，DUBBO实际是基于url进行驱动的
@@ -397,15 +401,17 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         // 4、循环遍历协议配置注册并根据协议发布服务
         for (ProtocolConfig protocolConfig : protocols) {
             String pathKey = URL.buildKey(getContextPath(protocolConfig)
-                    .map(p -> p + "/" + path)
-                    .orElse(path), group, version);
+                .map(p -> p + "/" + path)
+                .orElse(path), group, version);
             // stub service will use generated service name
-            if(!serverService) {
+            if (!serverService) {
                 // 如果用户指定路径，则再注册一次服务以将其映射到路径。
                 repository.registerService(pathKey, interfaceClass);
             }
             doExportUrlsFor1Protocol(protocolConfig, registryURLs);
         }
+
+        providerModel.setServiceUrls(urls);
     }
     /**
      * @return
@@ -423,7 +429,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         Map<String, String> map = buildAttributes(protocolConfig);
 
         // remove null key and null value
-        map.keySet().removeIf(key -> key == null || map.get(key) == null);
+        map.keySet().removeIf(key -> StringUtils.isEmpty(key) || StringUtils.isEmpty(map.get(key)));
         // init serviceMetadata attachments
         serviceMetadata.getAttachments().putAll(map);
 
@@ -458,7 +464,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             map.put(METHODS_KEY, ANY_VALUE);
         } else {
             String revision = Version.getVersion(interfaceClass, version);
-            if (revision != null && revision.length() > 0) {
+            if (StringUtils.isNotEmpty(revision)) {
                 map.put(REVISION_KEY, revision);
             }
 
@@ -486,7 +492,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             }
         }
 
-        if(ref instanceof ServerService){
+        if (ref instanceof ServerService) {
             map.put(PROXY_KEY, CommonConstants.NATIVE_STUB);
         }
 
@@ -576,9 +582,9 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
         // You can customize Configurator to append extra parameters  您可以自定义配置器以附加额外的参数
         if (this.getExtensionLoader(ConfiguratorFactory.class)
-                .hasExtension(url.getProtocol())) {
+            .hasExtension(url.getProtocol())) {
             url = this.getExtensionLoader(ConfiguratorFactory.class)
-                    .getExtension(url.getProtocol()).getConfigurator(url).configure(url);
+                .getExtension(url.getProtocol()).getConfigurator(url).configure(url);
         }
         url = url.setScopeModel(getScopeModel());
         url = url.setServiceModel(providerModel);
@@ -673,10 +679,10 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
     private void exportLocal(URL url) {
         // 进行本地URL的构建
         URL local = URLBuilder.from(url)
-                .setProtocol(LOCAL_PROTOCOL)
-                .setHost(LOCALHOST_VALUE)
-                .setPort(0)
-                .build();
+            .setProtocol(LOCAL_PROTOCOL)
+            .setHost(LOCALHOST_VALUE)
+            .setPort(0)
+            .build();
         local = local.setScopeModel(getScopeModel())
             .setServiceModel(providerModel);
         doExportUrl(local, false);
@@ -690,12 +696,12 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
      */
     private boolean isOnlyInJvm() {
         return getProtocols().size() == 1
-                && LOCAL_PROTOCOL.equalsIgnoreCase(getProtocols().get(0).getName());
+            && LOCAL_PROTOCOL.equalsIgnoreCase(getProtocols().get(0).getName());
     }
 
     private void postProcessConfig() {
         List<ConfigPostProcessor> configPostProcessors = this.getExtensionLoader(ConfigPostProcessor.class)
-                .getActivateExtension(URL.valueOf("configPostProcessor://", getScopeModel()), (String[]) null);
+            .getActivateExtension(URL.valueOf("configPostProcessor://", getScopeModel()), (String[]) null);
         configPostProcessors.forEach(component -> component.postProcessServiceConfig(this));
     }
 
@@ -730,7 +736,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         boolean anyhost = false;
 
         String hostToBind = getValueFromConfig(protocolConfig, DUBBO_IP_TO_BIND);
-        if (hostToBind != null && hostToBind.length() > 0 && isInvalidLocalHost(hostToBind)) {
+        if (StringUtils.isNotEmpty(hostToBind) && isInvalidLocalHost(hostToBind)) {
             throw new IllegalArgumentException("Specified invalid bind ip from property:" + DUBBO_IP_TO_BIND + ", value:" + hostToBind);
         }
 
@@ -743,7 +749,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             if (isInvalidLocalHost(hostToBind)) {
                 anyhost = true;
                 if (logger.isDebugEnabled()) {
-                    logger.info("No valid ip found from environment, try to get local host.");
+                    logger.debug("No valid ip found from environment, try to get local host.");
                 }
                 hostToBind = getLocalHost();
             }
@@ -751,7 +757,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
         map.put(BIND_IP_KEY, hostToBind);
 
-        // registry ip is not used for bind ip by default
+        // bind ip is not used for registry ip by default
         String hostToRegistry = getValueFromConfig(protocolConfig, DUBBO_IP_TO_REGISTRY);
         if (StringUtils.isNotEmpty(hostToRegistry) && isInvalidLocalHost(hostToRegistry)) {
             throw new IllegalArgumentException("Specified invalid registry ip from property:" + DUBBO_IP_TO_REGISTRY + ", value:" + hostToRegistry);
@@ -778,7 +784,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
     private static synchronized Integer findConfiguredPort(ProtocolConfig protocolConfig,
                                                            ProviderConfig provider,
                                                            ExtensionLoader<Protocol> extensionLoader,
-                                                           String name,Map<String, String> map) {
+                                                           String name, Map<String, String> map) {
         Integer portToBind;
 
         // parse bind port from environment
@@ -807,7 +813,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         // save bind port, used as url's key later
         map.put(BIND_PORT_KEY, String.valueOf(portToBind));
 
-        // registry port, not used as bind port by default
+        // bind port is not used as registry port by default
         String portToRegistryStr = getValueFromConfig(protocolConfig, DUBBO_PORT_TO_REGISTRY);
         Integer portToRegistry = parsePort(portToRegistryStr);
         if (portToRegistry == null) {
@@ -855,4 +861,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         }
     }
 
+    public Runnable getDestroyRunner() {
+        return this::unexport;
+    }
 }

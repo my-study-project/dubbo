@@ -37,7 +37,6 @@ import static org.apache.dubbo.common.constants.CommonConstants.MAX_PROXY_COUNT;
 /**
  * Proxy.
  */
-
 public class Proxy {
     public static final InvocationHandler THROW_UNSUPPORTED_INVOKER = new InvocationHandler() {
         @Override
@@ -150,7 +149,7 @@ public class Proxy {
 
                     StringBuilder code = new StringBuilder("Object[] args = new Object[").append(pts.length).append("];");
                     for (int j = 0; j < pts.length; j++) {
-                        code.append(" args[").append(j).append("] = ($w)$").append(j + 1).append(";");
+                        code.append(" args[").append(j).append("] = ($w)$").append(j + 1).append(';');
                     }
                     code.append(" Object ret = handler.invoke(this, methods[").append(ix).append("], args);");
                     if (!Void.TYPE.equals(rt)) {

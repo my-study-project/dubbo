@@ -27,6 +27,7 @@ import org.apache.dubbo.common.extension.ExtensionScope;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
 import org.apache.dubbo.common.utils.Assert;
+import org.apache.dubbo.common.utils.ClassUtils;
 import org.apache.dubbo.config.context.ModuleConfigManager;
 
 import java.util.HashMap;
@@ -60,9 +61,9 @@ public class ModuleModel extends ScopeModel {
         }
 
         initialize();
-        Assert.notNull(serviceRepository, "ModuleServiceRepository can not be null");
-        Assert.notNull(moduleConfigManager, "ModuleConfigManager can not be null");
-        Assert.assertTrue(moduleConfigManager.isInitialized(), "ModuleConfigManager can not be initialized");
+        Assert.notNull(getServiceRepository(), "ModuleServiceRepository can not be null");
+        Assert.notNull(getConfigManager(), "ModuleConfigManager can not be null");
+        Assert.assertTrue(getConfigManager().isInitialized(), "ModuleConfigManager can not be initialized");
 
         // notify application check state
         ApplicationDeployer applicationDeployer = applicationModel.getDeployer();
@@ -75,8 +76,6 @@ public class ModuleModel extends ScopeModel {
     protected void initialize() {
         super.initialize();
         this.serviceRepository = new ModuleServiceRepository(this);
-        this.moduleConfigManager = new ModuleConfigManager(this);
-        this.moduleConfigManager.initialize();
 
         initModuleExt();
 
@@ -157,6 +156,10 @@ public class ModuleModel extends ScopeModel {
     }
 
     public ModuleConfigManager getConfigManager() {
+        if (moduleConfigManager == null) {
+            moduleConfigManager = (ModuleConfigManager) this.getExtensionLoader(ModuleExt.class)
+                .getExtension(ModuleConfigManager.NAME);
+        }
         return moduleConfigManager;
     }
 
@@ -183,13 +186,13 @@ public class ModuleModel extends ScopeModel {
         serviceMetadata.setDefaultGroup(url.getGroup());
         serviceMetadata.setServiceInterfaceName(internalService.getName());
         serviceMetadata.setServiceType(internalService);
-        String servyceKey = URL.buildKey(internalService.getName(), url.getGroup(), url.getVersion());
-        serviceMetadata.setServiceKey(servyceKey);
+        String serviceKey = URL.buildKey(internalService.getName(), url.getGroup(), url.getVersion());
+        serviceMetadata.setServiceKey(serviceKey);
 
-        ConsumerModel consumerModel = new ConsumerModel(serviceMetadata.getServiceKey(), "jdk", serviceRepository.lookupService(serviceMetadata.getServiceInterfaceName()), null,
-            this, serviceMetadata, new HashMap<>());
+        ConsumerModel consumerModel = new ConsumerModel(serviceMetadata.getServiceKey(), "jdk", serviceRepository.lookupService(serviceMetadata.getServiceInterfaceName()),
+            this, serviceMetadata, new HashMap<>(0), ClassUtils.getClassLoader(internalService));
 
-        logger.info("Dynamically registering consumer model " + servyceKey + " into model " + this.getDesc());
+        logger.info("Dynamically registering consumer model " + serviceKey + " into model " + this.getDesc());
         serviceRepository.registerConsumer(consumerModel);
         return consumerModel;
     }

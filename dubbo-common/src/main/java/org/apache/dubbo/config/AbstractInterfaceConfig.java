@@ -174,7 +174,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
     protected String ondisconnect;
 
     /**
-     * The metrics configuration
+     * The metadata report configuration
      */
     protected MetadataReportConfig metadataReportConfig;
 
@@ -224,11 +224,6 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
     @Override
     protected void postProcessAfterScopeModelChanged(ScopeModel oldScopeModel, ScopeModel newScopeModel) {
         super.postProcessAfterScopeModelChanged(oldScopeModel, newScopeModel);
-        // remove this config from old ConfigManager
-//        if (oldScopeModel != null && oldScopeModel instanceof ModuleModel) {
-//            ((ModuleModel)oldScopeModel).getConfigManager().removeConfig(this);
-//        }
-
         // 更改引用配置的范围模型 change referenced config's scope model
         ApplicationModel applicationModel = ScopeModelUtil.getApplicationModel(scopeModel);
         if (this.configCenter != null && this.configCenter.getScopeModel() != applicationModel) {
@@ -292,7 +287,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
     }
 
     /**
-     * To obtain the method list in the port, use reflection when in native mode and javaassist otherwise.
+     * To obtain the method list in the port, use reflection when in native mode and javassist otherwise.
      * @param interfaceClass
      * @return
      */
@@ -601,7 +596,6 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
     }
 
     public void setProxy(String proxy) {
-
         this.proxy = proxy;
     }
 
